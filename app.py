@@ -1,16 +1,17 @@
-﻿from flask import Flask, request, jsonify, send_file, render_template_string
+# -*- coding: utf-8 -*-
+from flask import Flask, request, jsonify, send_file, render_template_string
 import trafilatura
 from bs4 import BeautifulSoup
 import csv
 import io
 import time
 import requests
+import os
 
 app = Flask(__name__)
 
-# --- CONFIGURATION CHARTE MONSIEUR CLICK ---
-# Remplace l'URL du logo par le tien si nécessaire
-LOGO_URL = "https://monsieurclick.com/wp-content/uploads/2023/05/logo-monsieur-click.png" 
+# Suppression des emojis dans les variables Python pour éviter les erreurs d'encodage
+LOGO_URL = "https://monsieurclick.com/wp-content/uploads/2023/05/logo-monsieur-click.png"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -122,7 +123,7 @@ HTML_TEMPLATE = """
         <button class="btn-main" onclick="runAudit()">Analyser maintenant</button>
     </div>
 
-    <div id="loader">� Monsieur Click analyse la page...</div>
+    <div id="loader">� Monsieur Click analyse la page...</div>
 
     <div id="results" style="display:none;">
         <div class="kpi-grid" id="kpiGrid"></div>
@@ -209,20 +210,19 @@ HTML_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
-def index():
-    return render_template_string(HTML_TEMPLATE, logo_url=LOGO_URL)
-
 @app.route('/api/extract', methods=['POST'])
 def extract():
     url = request.json.get('url')
     try:
         start = time.time()
+        # Ajout d'un timeout et d'un header propre
         resp = requests.get(url, timeout=10, headers={'User-Agent': 'MonsieurClickBot/1.0'})
         resp_time = round(time.time() - start, 2)
         
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        title = soup.title.string if soup.title else ""
+        # Forcer l'encodage pour BeautifulSoup
+        soup = BeautifulSoup(resp.content, 'html.parser', from_encoding='utf-8')
+        
+        title = soup.title.string if soup.title else "Sans titre"
         desc_tag = soup.find('meta', attrs={'name': 'description'})
         desc = desc_tag.get('content', '') if desc_tag else ""
         
@@ -250,17 +250,7 @@ def extract():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route('/api/export', methods=['POST'])
-def export():
-    data = request.json.get('headings')
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["url", "type", "text", "position"])
-    writer.writeheader()
-    writer.writerows(data)
-    mem = io.BytesIO()
-    mem.write(output.getvalue().encode('utf-8'))
-    mem.seek(0)
-    return send_file(mem, mimetype='text/csv', as_attachment=True, download_name="audit_monsieur_click.csv")
-
+# Commande de lancement adaptée à Render
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
