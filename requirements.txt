@@ -1,0 +1,5 @@
+﻿flask
+requests
+trafilatura
+beautifulsoup4
+gunicorn
